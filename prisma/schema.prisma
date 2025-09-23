@@ -1,0 +1,33 @@
+// PostgreSQL + Prisma schema for Ranking App
+// 그래프/컬럼 이름은 English, 주석은 한국어로 작성
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  nickname  String
+  createdAt DateTime @default(now())
+  // User는 여러 Score를 가질 수 있음
+  scores    Score[]
+}
+
+model Score {
+  id        String   @id @default(cuid())
+  userId    String
+  value     Int
+  // 간단한 게임 이름 구분 (옵션)
+  game      String   @default("default")
+  createdAt DateTime @default(now())
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([game, value, createdAt])
+}

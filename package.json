@@ -1,0 +1,43 @@
+{
+  "name": "my-app",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev --turbopack",
+    "dev:no-turbo": "next dev",
+    "dev:3000": "next dev -p 3000",
+    "dev:3000:no-turbo": "next dev -p 3000",
+    "dev:public": "next dev --turbopack --hostname 0.0.0.0 --port 3000",
+    "build": "next build --turbopack",
+    "start": "next start",
+    "start:public": "next start --hostname 0.0.0.0 --port 3000",
+    "start:test": "next start -p 3000 --hostname 127.0.0.1",
+    "start:test:e2e": "next start -p 3101 --hostname 127.0.0.1",
+    "tunnel": "cloudflared tunnel --url http://localhost:3000",
+    "tunnel:3000": "cloudflared tunnel --url http://localhost:3000",
+    "tunnel:ipv4": "cloudflared tunnel --url http://127.0.0.1:3000 --edge-ip-version 4 --protocol http2",
+    "tunnel:ipv4:debug": "cloudflared tunnel --url http://127.0.0.1:3000 --edge-ip-version 4 --protocol http2 --loglevel debug",
+    "tunnel:ipv4:localhost": "cloudflared tunnel --url http://127.0.0.1:3000 --edge-ip-version 4 --protocol http2 --http-host-header localhost",
+    "lint": "eslint",
+    "pretest:e2e": "npm run build",
+    "test:e2e": "playwright test"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.57.4",
+    "next": "15.5.2",
+    "react": "19.1.0",
+    "react-dom": "19.1.0"
+  },
+  "devDependencies": {
+    "@eslint/eslintrc": "^3",
+    "@playwright/test": "^1.55.0",
+    "@tailwindcss/postcss": "^4",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9",
+    "eslint-config-next": "15.5.2",
+    "tailwindcss": "^4",
+    "typescript": "^5"
+  }
+}

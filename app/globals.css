@@ -1,0 +1,77 @@
+@import "tailwindcss";
+
+:root {
+  --background: #ffffff;
+  --foreground: #171717;
+  /* Figma tokens (subset) */
+  --card: #ffffff;
+  --card-foreground: oklch(0.145 0 0);
+  --primary: #030213;
+  --primary-foreground: #ffffff;
+  --secondary: oklch(0.95 0.0058 264.53);
+  --secondary-foreground: #030213;
+  --muted: #ececf0;
+  --muted-foreground: #717182;
+  --accent: #e9ebef;
+  --accent-foreground: #030213;
+  --destructive: #d4183d;
+  --destructive-foreground: #ffffff;
+  --border: rgba(0,0,0,0.1);
+  --input-background: #f3f3f5;
+  --radius: 10px;
+  /* Elevation & Motion */
+  --elev-1: 0 1px 2px rgba(0,0,0,.06), 0 1px 3px rgba(0,0,0,.1);
+  --elev-2: 0 4px 8px rgba(0,0,0,.08), 0 8px 20px rgba(0,0,0,.12);
+  --elev-3: 0 8px 16px rgba(0,0,0,.10), 0 16px 32px rgba(0,0,0,.16);
+  --motion-short: 120ms cubic-bezier(.4, 0, .2, 1);
+  --motion-medium: 300ms cubic-bezier(.4, 0, .2, 1);
+  --motion-long: 600ms cubic-bezier(.4, 0, .2, 1);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0a0a0a;
+    --foreground: #ededed;
+    --card: oklch(0.145 0 0);
+    --card-foreground: oklch(0.985 0 0);
+    --secondary: oklch(0.269 0 0);
+    --secondary-foreground: oklch(0.985 0 0);
+    --muted: oklch(0.269 0 0);
+    --muted-foreground: oklch(0.708 0 0);
+    --accent: oklch(0.269 0 0);
+    --accent-foreground: oklch(0.985 0 0);
+    --destructive: oklch(0.396 0.141 25.723);
+    --destructive-foreground: #ffffff;
+    --border: oklch(0.269 0 0);
+  }
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+/* Accessibility/compatibility tweaks */
+html {
+  text-size-adjust: 100%;
+  -webkit-text-size-adjust: 100%;
+}
+
+/* Safari backdrop filter support for elements using Tailwind's backdrop-blur */
+:where(.backdrop-blur) {
+  -webkit-backdrop-filter: blur(10px);
+}
+
+/* Safari user-select prefix for Tailwind's select-none equivalent */
+:where(.select-none) {
+  -webkit-user-select: none;
+  user-select: none;
+}
