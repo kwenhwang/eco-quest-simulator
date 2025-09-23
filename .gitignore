@@ -117,3 +117,6 @@ playwright-report/
 # Temporary files
 nohup.out
 dev.log
+
+# Local Netlify folder
+.netlify
