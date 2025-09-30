@@ -80,6 +80,8 @@ DATABASE_URL=postgresql://postgres:postgres@localhost:54322/postgres
 JWT_SECRET=your-jwt-secret
 ```
 
+프로덕션 배포용 값은 `.env.production.example`을 참고해 환경 변수 키만 확인한 뒤, 실제 시크릿은 Vercel/Netlify 혹은 인프라 제공자의 시크릿 매니저에 등록하세요. `.env.production` 파일은 `.gitignore`에 추가되어 있으므로 버전 관리에 민감 정보가 남지 않도록 유지해야 합니다.
+
 ## 🎯 게임 플레이
 
 ### 기본 조작
