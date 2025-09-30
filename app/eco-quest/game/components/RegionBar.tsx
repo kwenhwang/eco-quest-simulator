@@ -23,6 +23,21 @@ export interface RegionBarProps {
   energyFacilityCount: number;
   onToggleStart: () => void;
   pulseSeverity?: NotificationSeverity | null;
+  goalsSummary?: {
+    completed: number;
+    total: number;
+  };
+  policySummary?: {
+    active: number;
+    total: number;
+  };
+  notificationsCount?: number;
+  environmentSummary?: {
+    net: number;
+    air: number;
+    water: number;
+    bio: number;
+  };
 }
 
 export function RegionBar({
@@ -35,6 +50,10 @@ export function RegionBar({
   energyFacilityCount,
   onToggleStart,
   pulseSeverity = null,
+  goalsSummary,
+  policySummary,
+  notificationsCount,
+  environmentSummary,
 }: RegionBarProps) {
   const energyLabel = useMemo(() => {
     if (resources.energyCapacity <= 0) {
@@ -114,6 +133,41 @@ export function RegionBar({
           </span>
           <span className="text-[11px] sm:text-xs">{supabaseStatus}</span>
         </div>
+
+        {(goalsSummary || policySummary || typeof notificationsCount === "number" || environmentSummary) && (
+          <div className="grid gap-2 text-[11px] text-slate-200 sm:grid-cols-3">
+            {goalsSummary ? (
+              <SummaryChip
+                title="목표 달성"
+                value={`${goalsSummary.completed}/${goalsSummary.total}`}
+                tone="emerald"
+              />
+            ) : null}
+            {policySummary ? (
+              <SummaryChip
+                title="활성 정책"
+                value={`${policySummary.active}/${policySummary.total}`}
+                tone="cyan"
+              />
+            ) : null}
+            {typeof notificationsCount === "number" ? (
+              <SummaryChip
+                title="알림"
+                value={`${notificationsCount}건`}
+                tone={notificationsCount > 0 ? "amber" : "slate"}
+              />
+            ) : null}
+            {environmentSummary ? (
+              <SummaryChip
+                title="환경 변화(월)"
+                value={`${environmentSummary.net >= 0 ? "+" : ""}${Math.round(environmentSummary.net)}`}
+                subtitle={`대기 ${Math.round(environmentSummary.air)}, 수질 ${Math.round(environmentSummary.water)}, 생물 ${Math.round(environmentSummary.bio)}`}
+                tone={environmentSummary.net >= 0 ? "emerald" : "rose"}
+                className="sm:col-span-3"
+              />
+            ) : null}
+          </div>
+        )}
       </div>
     </GlowFrame>
   );
@@ -143,6 +197,44 @@ function ResourceBadge({ variant, label, value }: ResourceBadgeProps) {
         <div className="text-[11px] uppercase tracking-wide text-slate-400">{label}</div>
         <div className="truncate text-sm font-semibold text-slate-100">{value}</div>
       </div>
+    </div>
+  );
+}
+
+type SummaryChipProps = {
+  title: string;
+  value: string;
+  subtitle?: string;
+  tone?: "emerald" | "cyan" | "amber" | "rose" | "slate";
+  className?: string;
+};
+
+function SummaryChip({
+  title,
+  value,
+  subtitle,
+  tone = "slate",
+  className,
+}: SummaryChipProps) {
+  const toneClass = {
+    emerald: "border-emerald-400/40 text-emerald-100",
+    cyan: "border-cyan-400/40 text-cyan-100",
+    amber: "border-amber-400/40 text-amber-100",
+    rose: "border-rose-400/40 text-rose-100",
+    slate: "border-slate-600/40 text-slate-200",
+  }[tone];
+
+  return (
+    <div
+      className={`eco-chip rounded-2xl border px-4 py-3 ${toneClass} ${className ?? ""}`.trim()}
+    >
+      <div className="text-[10px] uppercase tracking-wide text-slate-400/80">
+        {title}
+      </div>
+      <div className="mt-0.5 text-sm font-semibold text-current">{value}</div>
+      {subtitle ? (
+        <div className="mt-1 text-[10px] text-slate-300/80">{subtitle}</div>
+      ) : null}
     </div>
   );
 }

@@ -588,6 +588,9 @@ export default function EcoQuestGame() {
   const [activeMobileSheet, setActiveMobileSheet] = useState<MobilePanelKey | null>(
     null,
   );
+  const [toast, setToast] = useState<
+    { id: string; message: string; severity: NotificationSeverity }
+  | null>(null);
   const lastHydratedStateRef = useRef<GameState | null>(null);
   const hasBootstrappedSupabase = useRef(false);
   const syncTimeoutRef = useRef<number | null>(null);
@@ -630,6 +633,16 @@ export default function EcoQuestGame() {
   }, [showTutorial]);
 
   useEffect(() => {
+    if (!toast) {
+      return;
+    }
+    const handle = window.setTimeout(() => {
+      setToast(null);
+    }, 3200);
+    return () => window.clearTimeout(handle);
+  }, [toast]);
+
+  useEffect(() => {
     return () => {
       if (hudPulseTimeoutRef.current) {
         window.clearTimeout(hudPulseTimeoutRef.current);
@@ -660,7 +673,12 @@ export default function EcoQuestGame() {
   }, [gameState.notifications]);
 
   const emitEvent = useCallback(
-    (type: GameEventType, message: string, payload?: Record<string, unknown>) => {
+    (
+      type: GameEventType,
+      message: string,
+      payload?: Record<string, unknown>,
+      severity: NotificationSeverity = "info",
+    ) => {
       const event: GameEvent = {
         id: makeId("evt"),
         type,
@@ -682,6 +700,7 @@ export default function EcoQuestGame() {
           };
           return [entry, ...prev].slice(0, 20);
         });
+        setToast({ id: event.id, message, severity });
       }
       const listeners = eventListenersRef.current.get(type);
       if (listeners) {
@@ -694,7 +713,7 @@ export default function EcoQuestGame() {
         });
       }
     },
-    [setFeedItems],
+    [setFeedItems, setToast],
   );
 
   const subscribeToEvent = useCallback(
@@ -1214,11 +1233,16 @@ export default function EcoQuestGame() {
       const lossReason = energy <= LOSS_ENERGY_THRESHOLD ? "에너지 고갈" : "환경 악화";
       setSessionOutcome("lost");
       setGameState((prev) => (prev.started ? { ...prev, started: false } : prev));
-      emitEvent("lose", `${lossReason}로 세션이 종료되었습니다.`, {
-        tick: gameState.tick,
-        energy,
-        ecoScore,
-      });
+      emitEvent(
+        "lose",
+        `${lossReason}로 세션이 종료되었습니다.`,
+        {
+          tick: gameState.tick,
+          energy,
+          ecoScore,
+        },
+        "error",
+      );
       notify({
         severity: "error",
         title: "세션 실패",
@@ -1231,10 +1255,15 @@ export default function EcoQuestGame() {
     if (ecoScore >= WIN_ECO_SCORE_THRESHOLD && allGoalsMet) {
       setSessionOutcome("won");
       setGameState((prev) => (prev.started ? { ...prev, started: false } : prev));
-      emitEvent("win", "지속가능성 목표를 달성했습니다.", {
-        tick: gameState.tick,
-        ecoScore,
-      });
+      emitEvent(
+        "win",
+        "지속가능성 목표를 달성했습니다.",
+        {
+          tick: gameState.tick,
+          ecoScore,
+        },
+        "success",
+      );
       notify({
         severity: "success",
         title: "세션 완료",
@@ -1373,12 +1402,17 @@ export default function EcoQuestGame() {
             title: "건설 완료",
             message: `${definition.displayName}가 도시에 추가되었습니다.`,
           });
-          emitEvent("build", `${definition.displayName} 건설`, {
-            facilityId: builtFacility.id,
-            type: builtFacility.type,
-            position: builtFacility.position,
-            level: builtFacility.level,
-          });
+          emitEvent(
+            "build",
+            `${definition.displayName} 건설`,
+            {
+              facilityId: builtFacility.id,
+              type: builtFacility.type,
+              position: builtFacility.position,
+              level: builtFacility.level,
+            },
+            "success",
+          );
           setLastBuildFeedback({ type: builtFacility.type, timestamp: Date.now() });
           setSelectedFacilityId(builtFacility.id);
           setSelectedBuildType(null);
@@ -1486,10 +1520,15 @@ export default function EcoQuestGame() {
             title: "업그레이드 완료",
             message: "시설 레벨이 상승했습니다.",
           });
-          emitEvent("upgrade", `${facilityId} 업그레이드`, {
-            facilityId,
-            level: upgraded?.level ?? 0,
-          });
+          emitEvent(
+            "upgrade",
+            `${facilityId} 업그레이드`,
+            {
+              facilityId,
+              level: upgraded?.level ?? 0,
+            },
+            "success",
+          );
           break;
         }
         default:
@@ -1542,12 +1581,15 @@ export default function EcoQuestGame() {
             policy.active ? "활성화" : "비활성화"
           }되었습니다.`,
         });
-        emitEvent("policy", `${policy.name} 정책 ${
-          policy.active ? "활성화" : "비활성화"
-        }`, {
-          policyId,
-          active: policy.active,
-        });
+        emitEvent(
+          "policy",
+          `${policy.name} 정책 ${policy.active ? "활성화" : "비활성화"}`,
+          {
+            policyId,
+            active: policy.active,
+          },
+          policy.active ? "success" : "info",
+        );
       }
     },
     [emitEvent, notify],
@@ -1874,6 +1916,69 @@ export default function EcoQuestGame() {
     ledger: "환경 영향",
   };
 
+  const goalsSummaryData = useMemo(() => {
+    const total = gameState.goals.length;
+    const completed = gameState.goals.filter((goal) => goal.progress >= goal.target)
+      .length;
+    return { completed, total };
+  }, [gameState.goals]);
+
+  const policySummaryData = useMemo(() => {
+    const total = gameState.policies.length;
+    const active = gameState.policies.filter((policy) => policy.active).length;
+    return { active, total };
+  }, [gameState.policies]);
+
+  const notificationsCount = gameState.notifications.length;
+
+  const environmentSummaryData = useMemo(() => {
+    const net =
+      environmentMonthlyDelta.air +
+      environmentMonthlyDelta.water +
+      environmentMonthlyDelta.bio;
+    return {
+      net,
+      air: environmentMonthlyDelta.air,
+      water: environmentMonthlyDelta.water,
+      bio: environmentMonthlyDelta.bio,
+    };
+  }, [environmentMonthlyDelta]);
+
+  const mobileNavItems = useMemo(
+    () => [
+      {
+        key: "policy" as MobilePanelKey,
+        icon: "⚖️",
+        label: "정책",
+        badge: `${policySummaryData.active}/${policySummaryData.total}`,
+      },
+      {
+        key: "ledger" as MobilePanelKey,
+        icon: "🌍",
+        label: "환경",
+        badge: `${environmentSummaryData.net >= 0 ? "+" : ""}${Math.round(environmentSummaryData.net)}`,
+      },
+      {
+        key: "goals" as MobilePanelKey,
+        icon: "🎯",
+        label: "목표",
+        badge: `${goalsSummaryData.completed}/${goalsSummaryData.total}`,
+      },
+      {
+        key: "events" as MobilePanelKey,
+        icon: "📜",
+        label: "이벤트",
+        badge: `${notificationsCount}`,
+      },
+    ],
+    [
+      environmentSummaryData,
+      goalsSummaryData,
+      notificationsCount,
+      policySummaryData,
+    ],
+  );
+
   let mobileSheetContent: React.ReactNode = null;
   if (activeMobileSheet === "policy") {
     mobileSheetContent = (
@@ -1929,6 +2034,10 @@ export default function EcoQuestGame() {
           energyFacilityCount={energyFacilityCount}
           onToggleStart={handleToggleStart}
           pulseSeverity={hudPulseSeverity}
+          goalsSummary={goalsSummaryData}
+          policySummary={policySummaryData}
+          notificationsCount={notificationsCount}
+          environmentSummary={environmentSummaryData}
         />
 
         <main className="flex flex-col gap-5 pb-24 lg:grid lg:pb-0 lg:grid-cols-[260px_minmax(0,1fr)_320px]">
@@ -2001,14 +2110,7 @@ export default function EcoQuestGame() {
         </main>
 
         <div className="fixed inset-x-0 bottom-[120px] z-40 flex items-center justify-around gap-2 px-4 lg:hidden">
-          {(
-            [
-              ["policy", "⚖️", "정책"],
-              ["ledger", "🌍", "환경"],
-              ["goals", "🎯", "목표"],
-              ["events", "📜", "이벤트"],
-            ] as Array<[MobilePanelKey, string, string]>
-          ).map(([key, icon, label]) => {
+          {mobileNavItems.map(({ key, icon, label, badge }) => {
             const active = activeMobileSheet === key;
             return (
               <button
@@ -2025,7 +2127,10 @@ export default function EcoQuestGame() {
                 <span className="text-lg" aria-hidden>
                   {icon}
                 </span>
-                <span className="mt-0.5 leading-tight">{label}</span>
+                <div className="mt-0.5 leading-tight text-center">
+                  <div>{label}</div>
+                  <div className="text-[10px] text-emerald-200/80">{badge}</div>
+                </div>
               </button>
             );
           })}
@@ -2033,23 +2138,6 @@ export default function EcoQuestGame() {
 
         <section className="flex flex-col gap-4 lg:hidden">
           {detailPanel}
-          <section className="rounded-3xl bg-slate-900/70 p-5 shadow-inner ring-1 ring-slate-700/40">
-            <h3 className="text-lg font-semibold text-slate-100">환경 정책 조정</h3>
-            <div className="mt-4 space-y-3">
-              <PolicyControlPanel
-                policy={policyControls}
-                onChange={handlePolicyControlsChange}
-              />
-            </div>
-          </section>
-          <ExternalityLedger
-            envImpactMonthly={environmentMonthlyDelta}
-            privateIncomeDaily={dailyPrivateIncome}
-          />
-          {policiesPanel}
-          {goalsPanel}
-          {notificationsPanel}
-          <PlayersFeed items={feedItems} />
         </section>
       </div>
 
