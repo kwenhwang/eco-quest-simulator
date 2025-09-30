@@ -7,6 +7,12 @@ import { FacilityUpgradeInfo } from "@/components/UpgradeableIcons";
 import { useNotify } from "@/app/_components/notification-center";
 import { FacilityBoard } from "./components/Board";
 import { RegionBar } from "./components/RegionBar";
+import { ExternalityLedger } from "./components/externality-ledger";
+import { PlayersFeed, type FeedItem } from "./components/players-feed";
+import {
+  PolicyPanel as PolicyControlPanel,
+  type Policy as PolicyControlState,
+} from "./components/policy-panel";
 import {
   QuickDockBar,
   QuickDockPanel,
@@ -34,7 +40,7 @@ import type {
   Goal,
   NotificationEntry,
   NotificationSeverity,
-  Policy,
+  Policy as StoredPolicy,
   ResourceState,
   SupabaseStatus,
 } from "@/lib/game/types";
@@ -60,6 +66,19 @@ const WIN_ECO_SCORE_THRESHOLD = 90;
 const LOSS_ECO_SCORE_THRESHOLD = 10;
 const LOSS_ENERGY_THRESHOLD = 5;
 const MIN_TICKS_FOR_OUTCOME = 6;
+
+type EnvVector = { air: number; water: number; bio: number };
+
+const FACILITY_ENVIRONMENT_VECTORS: Record<FacilityType, EnvVector> = {
+  solar: { air: 1.8, water: 0.4, bio: 0.3 },
+  wind: { air: 1.5, water: 0.2, bio: 0.4 },
+  residential: { air: -1.2, water: -0.8, bio: -0.5 },
+  commercial: { air: -1.4, water: -1.1, bio: -0.6 },
+  park: { air: 0.8, water: 1.2, bio: 1.6 },
+  recycling: { air: 0.6, water: 1.4, bio: 0.7 },
+};
+
+const ENVIRONMENT_HISTORY_WINDOW = 30;
 
 type UnknownRecord = Record<string, unknown>;
 
@@ -141,7 +160,7 @@ const mergeFacilities = (
   return next.length > 0 ? next : base;
 };
 
-const mergePolicies = (base: Policy[], payload: unknown): Policy[] => {
+const mergePolicies = (base: StoredPolicy[], payload: unknown): StoredPolicy[] => {
   if (!Array.isArray(payload) || payload.length === 0) {
     return base;
   }
@@ -174,9 +193,9 @@ const mergePolicies = (base: Policy[], payload: unknown): Policy[] => {
               : undefined,
         },
         active: typeof entry.active === "boolean" ? entry.active : false,
-      } as Policy;
+      } as StoredPolicy;
     })
-    .filter((entry): entry is Policy => entry !== null);
+    .filter((entry): entry is StoredPolicy => entry !== null);
   return result.length > 0 ? result : base;
 };
 
@@ -452,6 +471,55 @@ const createInitialGameState = (): GameState => {
   };
 };
 
+function TutorialOverlay({
+  onClose,
+  onBegin,
+}: {
+  onClose: () => void;
+  onBegin: () => void;
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 px-4 backdrop-blur-sm">
+      <div className="w-full max-w-2xl rounded-3xl border border-emerald-400/40 bg-slate-900/80 p-8 text-slate-100 shadow-2xl">
+        <h2 className="text-2xl font-bold tracking-tight text-emerald-200">Eco-Quest 플레이 가이드</h2>
+        <p className="mt-2 text-sm text-slate-300">
+          친환경 도시를 운영해 환경 점수와 경제 성장을 동시에 잡아보세요. 기본 흐름은 아래와 같습니다.
+        </p>
+        <ol className="mt-6 space-y-3 text-sm text-slate-200">
+          <li>
+            <span className="font-semibold text-emerald-300">1. 시설 배치:</span> 보드의 빈 타일을 선택하고 퀵 도크에서 태양광, 주거, 공원 등 시설을 건설하세요.
+          </li>
+          <li>
+            <span className="font-semibold text-emerald-300">2. 정책 조정:</span> 오른쪽 패널에서 탄소세·보조금·규제 강도를 조절해 환경 피해를 억제하고 사회적 비용을 관리하세요.
+          </li>
+          <li>
+            <span className="font-semibold text-emerald-300">3. 지표 모니터링:</span> 상단 HUD와 외부효과 패널을 주기적으로 확인해 에너지, 자원, 환경 점수를 균형 있게 유지하세요.
+          </li>
+          <li>
+            <span className="font-semibold text-emerald-300">4. 승리 조건:</span> 환경 점수 90 이상과 모든 도시 목표를 달성하면 세션이 성공적으로 완료됩니다.
+          </li>
+        </ol>
+        <div className="mt-8 flex flex-wrap items-center justify-end gap-3">
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-full border border-slate-600 px-4 py-2 text-sm text-slate-200 hover:border-slate-400"
+          >
+            나중에 다시 보기
+          </button>
+          <button
+            type="button"
+            onClick={onBegin}
+            className="rounded-full bg-emerald-400 px-5 py-2 text-sm font-semibold text-slate-900 shadow hover:bg-emerald-300"
+          >
+            바로 시뮬레이션 시작
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function EcoQuestGame() {
   const { notify } = useNotify();
   const [gameState, setGameState] = useState<GameState>(() => createInitialGameState());
@@ -467,6 +535,23 @@ export default function EcoQuestGame() {
     timestamp: number;
   } | null>(null);
   const [hudPulseSeverity, setHudPulseSeverity] = useState<NotificationSeverity | null>(null);
+  const [feedItems, setFeedItems] = useState<FeedItem[]>([]);
+  const [policyControls, setPolicyControls] = useState<PolicyControlState>({
+    taxPerNegEnvMonthly: 30,
+    subsidyPerPosEnvMonthly: 15,
+    regulationStrictness: 0.35,
+  });
+  const environmentHistoryRef = useRef<EnvVector[]>([]);
+  const [environmentMonthlyDelta, setEnvironmentMonthlyDelta] = useState<EnvVector>({
+    air: 0,
+    water: 0,
+    bio: 0,
+  });
+  const [dailyPrivateIncome, setDailyPrivateIncome] = useState(0);
+  const [showTutorial, setShowTutorial] = useState<boolean>(() => {
+    if (typeof window === "undefined") return true;
+    return window.localStorage.getItem("eco-quest-tutorial") !== "dismissed";
+  });
   const lastHydratedStateRef = useRef<GameState | null>(null);
   const hasBootstrappedSupabase = useRef(false);
   const syncTimeoutRef = useRef<number | null>(null);
@@ -496,6 +581,17 @@ export default function EcoQuestGame() {
   useEffect(() => {
     lastHydratedStateRef.current = gameState;
   }, [gameState]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+    if (showTutorial) {
+      window.localStorage.removeItem("eco-quest-tutorial");
+    } else {
+      window.localStorage.setItem("eco-quest-tutorial", "dismissed");
+    }
+  }, [showTutorial]);
 
   useEffect(() => {
     return () => {
@@ -540,6 +636,17 @@ export default function EcoQuestGame() {
         ...eventLogRef.current.slice(-(EVENT_LOG_LIMIT - 1)),
         event,
       ];
+      if (type !== "tick") {
+        setFeedItems((prev) => {
+          const entry: FeedItem = {
+            id: event.id,
+            ts: event.timestamp,
+            source: "me",
+            text: message,
+          };
+          return [entry, ...prev].slice(0, 20);
+        });
+      }
       const listeners = eventListenersRef.current.get(type);
       if (listeners) {
         listeners.forEach((listener) => {
@@ -551,7 +658,7 @@ export default function EcoQuestGame() {
         });
       }
     },
-    [],
+    [setFeedItems],
   );
 
   const subscribeToEvent = useCallback(
@@ -805,6 +912,7 @@ export default function EcoQuestGame() {
         const nextFacilities = prev.facilities.map((facility) => ({
           ...facility,
         }));
+        const environmentTick: EnvVector = { air: 0, water: 0, bio: 0 };
         let nextNotifications = prev.notifications.slice();
 
         const totalCapacityBonus = nextFacilities.reduce((total, facility) => {
@@ -851,6 +959,18 @@ export default function EcoQuestGame() {
           facility.efficiency = Math.round(
             clamp(facility.efficiency + efficiencyDelta, 60, 120),
           );
+
+          if (facility.status === "active") {
+            const envVector =
+              FACILITY_ENVIRONMENT_VECTORS[facility.type] ?? ({
+                air: 0,
+                water: 0,
+                bio: 0,
+              } satisfies EnvVector);
+            environmentTick.air += envVector.air * facility.level;
+            environmentTick.water += envVector.water * facility.level;
+            environmentTick.bio += envVector.bio * facility.level;
+          }
         });
 
         prev.policies.forEach((policy) => {
@@ -873,9 +993,55 @@ export default function EcoQuestGame() {
           }
         });
 
+        const combinedImpact =
+          environmentTick.air + environmentTick.water + environmentTick.bio;
+        const negativeImpact = Math.max(0, -combinedImpact);
+        const positiveImpact = Math.max(0, combinedImpact);
+        const envTaxDaily =
+          (policyControls.taxPerNegEnvMonthly / 30) * negativeImpact;
+        const envSubsidyDaily =
+          (policyControls.subsidyPerPosEnvMonthly / 30) * positiveImpact;
+        const regulationPenalty =
+          policyControls.regulationStrictness * negativeImpact * 0.8;
+
+        nextResources.credits = Math.max(
+          0,
+          nextResources.credits - envTaxDaily + envSubsidyDaily - regulationPenalty,
+        );
+        if (policyControls.regulationStrictness > 0) {
+          nextResources.ecoScore = clamp(
+            nextResources.ecoScore + policyControls.regulationStrictness * positiveImpact * 0.25,
+            0,
+            100,
+          );
+        }
+
         nextResources.credits = Math.max(0, nextResources.credits);
         nextResources.energy = Math.max(0, nextResources.energy);
         nextResources.water = Math.max(0, nextResources.water);
+
+        environmentHistoryRef.current = [
+          environmentTick,
+          ...environmentHistoryRef.current,
+        ].slice(0, ENVIRONMENT_HISTORY_WINDOW);
+
+        const monthlyTotals = environmentHistoryRef.current.reduce<EnvVector>(
+          (acc, entry) => ({
+            air: acc.air + entry.air,
+            water: acc.water + entry.water,
+            bio: acc.bio + entry.bio,
+          }),
+          { air: 0, water: 0, bio: 0 },
+        );
+
+        setEnvironmentMonthlyDelta({
+          air: Math.round(monthlyTotals.air),
+          water: Math.round(monthlyTotals.water),
+          bio: Math.round(monthlyTotals.bio),
+        });
+
+        const incomeDelta = nextResources.credits - prev.resources.credits;
+        setDailyPrivateIncome(Math.round(incomeDelta));
 
         const updatedGoals = prev.goals.map((goal) => {
           switch (goal.id) {
@@ -938,7 +1104,7 @@ export default function EcoQuestGame() {
     }, 2000);
 
     return () => window.clearInterval(interval);
-  }, []);
+  }, [policyControls]);
 
   useEffect(() => {
     if (!gameState.started) return;
@@ -1299,7 +1465,7 @@ export default function EcoQuestGame() {
 
   const togglePolicy = useCallback(
     (policyId: string) => {
-      let toggledPolicy: Policy | null = null;
+      let toggledPolicy: StoredPolicy | null = null;
       setGameState((prev) => {
         const updatedPolicies = prev.policies.map((policy) => {
           if (policy.id !== policyId) return policy;
@@ -1332,7 +1498,7 @@ export default function EcoQuestGame() {
       });
 
       if (toggledPolicy) {
-        const policy = toggledPolicy as Policy;
+        const policy = toggledPolicy as StoredPolicy;
         notify({
           severity: policy.active ? "success" : "info",
           title: "정책 업데이트",
@@ -1373,6 +1539,22 @@ export default function EcoQuestGame() {
 
   const handleQuickDockFilterChange = useCallback((nextFilter: QuickDockFilter) => {
     setQuickDockFilter(nextFilter);
+  }, []);
+
+  const handlePolicyControlsChange = useCallback(
+    (nextControls: PolicyControlState) => {
+      setPolicyControls(nextControls);
+    },
+    [],
+  );
+
+  const handleDismissTutorial = useCallback(() => {
+    setShowTutorial(false);
+  }, []);
+
+  const handleBeginSimulation = useCallback(() => {
+    setShowTutorial(false);
+    setGameState((prev) => (prev.started ? prev : { ...prev, started: true }));
   }, []);
 
   const energyFacilityCount = useMemo(
@@ -1642,7 +1824,14 @@ export default function EcoQuestGame() {
   );
 
   return (
-    <div className="relative min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-emerald-950 pb-36 text-slate-100 lg:pb-16">
+    <>
+      {showTutorial ? (
+        <TutorialOverlay
+          onClose={handleDismissTutorial}
+          onBegin={handleBeginSimulation}
+        />
+      ) : null}
+      <div className="relative min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-emerald-950 pb-36 text-slate-100 lg:pb-16">
       <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 py-6 sm:px-6 lg:px-8">
         <RegionBar
           tick={gameState.tick}
@@ -1699,17 +1888,48 @@ export default function EcoQuestGame() {
 
           <aside className="hidden flex-col gap-4 lg:flex">
             {detailPanel}
+            <section className="rounded-3xl bg-slate-900/70 p-5 shadow-inner ring-1 ring-slate-700/40">
+              <h3 className="text-lg font-semibold text-slate-100">환경 정책 조정</h3>
+              <p className="mt-1 text-xs text-slate-400">
+                탄소세·보조금·규제 강도를 조정해 환경 피해를 완화하세요.
+              </p>
+              <div className="mt-4 space-y-3">
+            <PolicyControlPanel
+              policy={policyControls}
+              onChange={handlePolicyControlsChange}
+            />
+              </div>
+            </section>
+            <ExternalityLedger
+              envImpactMonthly={environmentMonthlyDelta}
+              privateIncomeDaily={dailyPrivateIncome}
+            />
             {policiesPanel}
             {goalsPanel}
             {notificationsPanel}
+            <PlayersFeed items={feedItems} />
           </aside>
         </main>
 
         <section className="flex flex-col gap-4 lg:hidden">
           {detailPanel}
+          <section className="rounded-3xl bg-slate-900/70 p-5 shadow-inner ring-1 ring-slate-700/40">
+            <h3 className="text-lg font-semibold text-slate-100">환경 정책 조정</h3>
+            <div className="mt-4 space-y-3">
+              <PolicyControlPanel
+                policy={policyControls}
+                onChange={handlePolicyControlsChange}
+              />
+            </div>
+          </section>
+          <ExternalityLedger
+            envImpactMonthly={environmentMonthlyDelta}
+            privateIncomeDaily={dailyPrivateIncome}
+          />
           {policiesPanel}
           {goalsPanel}
           {notificationsPanel}
+          <PlayersFeed items={feedItems} />
         </section>
       </div>
 
@@ -1725,5 +1945,6 @@ export default function EcoQuestGame() {
         </div>
       </div>
     </div>
+    </>
   );
 }

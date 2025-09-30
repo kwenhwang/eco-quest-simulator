@@ -6,7 +6,7 @@ const supabaseUrl =
 const supabaseAnonKey =
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? process.env.SUPABASE_ANON_KEY;
 
-if (typeof window !== "undefined") {
+if (typeof window !== "undefined" && process.env.NODE_ENV !== "production") {
   console.log("Build-time Supabase URL", process.env.NEXT_PUBLIC_SUPABASE_URL);
 }
 
