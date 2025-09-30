@@ -1,0 +1,17 @@
+{
+  "meta": {
+    "name": "Eco-Quest Base Palette",
+    "description": "Core 36-color palette inspired by Cookie Run Kingdom's warm fantasy aesthetic.",
+    "createdAt": "2025-09-25",
+    "notes": "Keep values in sync with Tailwind config extensions once defined."
+  },
+  "swatches": {
+    "sky": ["#1C243A", "#2E3A63", "#4D5E9E", "#85A1FF"],
+    "ground": ["#1E2B23", "#2F3C31", "#455944", "#6E8C62"],
+    "highlight": ["#F5C15B", "#F89D3C", "#F77070", "#FDE6A8"],
+    "accent": ["#7DD3FC", "#94F2D2", "#DDB0FF", "#FEB3DA"],
+    "ui": ["#0F172A", "#152238", "#1D2D4A", "#23375E"],
+    "neutral": ["#9AA5B1", "#E2E8F0", "#F4F4F5", "#0B0F1C"],
+    "alert": ["#F97316", "#FACC15", "#22D3EE", "#34D399"]
+  }
+}

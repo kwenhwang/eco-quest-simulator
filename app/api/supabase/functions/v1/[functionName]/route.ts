@@ -283,16 +283,27 @@ async function readJson(request: NextRequest) {
   }
 }
 
-export async function POST(
-  request: NextRequest,
-  { params }: { params: { functionName: string } },
-) {
-  const { functionName } = params;
+export async function POST(request: NextRequest) {
+  const url = request.nextUrl;
+  const normalizedPath = url.pathname.replace(/\/$/, "");
+  const functionName = normalizedPath.split("/").pop();
+
+  if (!functionName) {
+    return NextResponse.json(
+      {
+        error: {
+          message: "Missing Supabase function name",
+        },
+      },
+      { status: 400 },
+    );
+  }
   const payload = await readJson(request);
 
   const forwarded = await forwardSupabaseFunction(functionName, payload ?? undefined);
   if (forwarded.forwarded) {
-    const headers = new Headers(forwarded.headers ?? {});
+    const headersInit = (forwarded.headers ?? {}) as HeadersInit;
+    const headers = new Headers(headersInit);
     if (!headers.has("content-type")) {
       headers.set("content-type", "application/json");
     }
