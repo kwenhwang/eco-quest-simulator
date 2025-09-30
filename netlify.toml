@@ -13,9 +13,14 @@
   status = 200
 
 [[redirects]]
-  from = "/api/*"
-  to = "/.netlify/functions/:splat"
-  status = 200
+from = "/api/supabase/*"
+to = "/api/supabase/:splat"
+status = 200
+
+[[redirects]]
+from = "/api/*"
+to = "/.netlify/functions/:splat"
+status = 200
 
 [[headers]]
   for = "/*"
