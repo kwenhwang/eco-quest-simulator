@@ -302,15 +302,21 @@ export async function POST(request: NextRequest) {
 
   const forwarded = await forwardSupabaseFunction(functionName, payload ?? undefined);
   if (forwarded.forwarded) {
-    const headersInit = (forwarded.headers ?? {}) as HeadersInit;
-    const headers = new Headers(headersInit);
-    if (!headers.has("content-type")) {
-      headers.set("content-type", "application/json");
+    if (forwarded.ok) {
+      const headersInit = (forwarded.headers ?? {}) as HeadersInit;
+      const headers = new Headers(headersInit);
+      if (!headers.has("content-type")) {
+        headers.set("content-type", "application/json");
+      }
+      return new NextResponse(forwarded.bodyText ?? "", {
+        status: forwarded.status ?? 200,
+        headers,
+      });
     }
-    return new NextResponse(forwarded.bodyText ?? "", {
-      status: forwarded.status ?? 200,
-      headers,
-    });
+
+    console.warn(
+      `[supabase-proxy] ${functionName} returned ${forwarded.status}. Falling back to mock response.`,
+    );
   }
 
   switch (functionName) {
