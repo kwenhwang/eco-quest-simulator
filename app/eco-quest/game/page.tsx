@@ -79,6 +79,7 @@ const FACILITY_ENVIRONMENT_VECTORS: Record<FacilityType, EnvVector> = {
 };
 
 const ENVIRONMENT_HISTORY_WINDOW = 30;
+type MobilePanelKey = "policy" | "goals" | "events" | "ledger";
 
 type UnknownRecord = Record<string, unknown>;
 
@@ -520,6 +521,38 @@ function TutorialOverlay({
   );
 }
 
+function MobileSheet({
+  title,
+  onClose,
+  children,
+}: {
+  title: string;
+  onClose: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="fixed inset-x-0 bottom-0 z-50 rounded-t-3xl border-t border-emerald-400/30 bg-slate-900/95 px-4 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-4 shadow-[0_-20px_40px_rgba(15,23,42,0.55)]">
+      <div className="mx-auto w-full max-w-3xl">
+        <div className="mb-3 flex items-center justify-between">
+          <div>
+            <div className="text-sm font-semibold text-emerald-200">{title}</div>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-full border border-slate-600/60 px-3 py-1 text-xs text-slate-200 hover:border-slate-400"
+          >
+            닫기
+          </button>
+        </div>
+        <div className="max-h-[55vh] overflow-y-auto pb-2 text-sm text-slate-100">
+          {children}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function EcoQuestGame() {
   const { notify } = useNotify();
   const [gameState, setGameState] = useState<GameState>(() => createInitialGameState());
@@ -552,6 +585,9 @@ export default function EcoQuestGame() {
     if (typeof window === "undefined") return true;
     return window.localStorage.getItem("eco-quest-tutorial") !== "dismissed";
   });
+  const [activeMobileSheet, setActiveMobileSheet] = useState<MobilePanelKey | null>(
+    null,
+  );
   const lastHydratedStateRef = useRef<GameState | null>(null);
   const hasBootstrappedSupabase = useRef(false);
   const syncTimeoutRef = useRef<number | null>(null);
@@ -1557,6 +1593,14 @@ export default function EcoQuestGame() {
     setGameState((prev) => (prev.started ? prev : { ...prev, started: true }));
   }, []);
 
+  const closeMobileSheet = useCallback(() => {
+    setActiveMobileSheet(null);
+  }, []);
+
+  const toggleMobileSheet = useCallback((panel: MobilePanelKey) => {
+    setActiveMobileSheet((prev) => (prev === panel ? null : panel));
+  }, []);
+
   const energyFacilityCount = useMemo(
     () =>
       gameState.facilities.filter((facility) =>
@@ -1823,6 +1867,49 @@ export default function EcoQuestGame() {
     </section>
   );
 
+  const mobileSheetTitleMap: Record<MobilePanelKey, string> = {
+    policy: "환경 정책",
+    goals: "도시 목표",
+    events: "최근 활동",
+    ledger: "환경 영향",
+  };
+
+  let mobileSheetContent: React.ReactNode = null;
+  if (activeMobileSheet === "policy") {
+    mobileSheetContent = (
+      <div className="space-y-4 text-sm">
+        <PolicyControlPanel
+          policy={policyControls}
+          onChange={handlePolicyControlsChange}
+        />
+        <ExternalityLedger
+          envImpactMonthly={environmentMonthlyDelta}
+          privateIncomeDaily={dailyPrivateIncome}
+        />
+        {policiesPanel}
+      </div>
+    );
+  } else if (activeMobileSheet === "goals") {
+    mobileSheetContent = goalsPanel;
+  } else if (activeMobileSheet === "events") {
+    mobileSheetContent = (
+      <div className="space-y-4">
+        {notificationsPanel}
+        <PlayersFeed items={feedItems} />
+      </div>
+    );
+  } else if (activeMobileSheet === "ledger") {
+    mobileSheetContent = (
+      <div className="space-y-4">
+        <ExternalityLedger
+          envImpactMonthly={environmentMonthlyDelta}
+          privateIncomeDaily={dailyPrivateIncome}
+        />
+        <PlayersFeed items={feedItems} />
+      </div>
+    );
+  }
+
   return (
     <>
       {showTutorial ? (
@@ -1844,7 +1931,7 @@ export default function EcoQuestGame() {
           pulseSeverity={hudPulseSeverity}
         />
 
-        <main className="flex flex-col gap-5 lg:grid lg:grid-cols-[260px_minmax(0,1fr)_320px]">
+        <main className="flex flex-col gap-5 pb-24 lg:grid lg:pb-0 lg:grid-cols-[260px_minmax(0,1fr)_320px]">
           <aside className="hidden flex-col gap-4 lg:flex">
             <QuickDockPanel
               selectedType={selectedBuildType}
@@ -1876,14 +1963,16 @@ export default function EcoQuestGame() {
                 8 x 6 타일 · 비어있는 위치를 클릭해 시설을 배치하세요
               </span>
             </div>
-            <FacilityBoard
-              columns={GRID_COLUMNS}
-              rows={GRID_ROWS}
-              facilities={gameState.facilities}
-              selectedFacilityId={selectedFacilityId}
-              selectedBuildType={selectedBuildType}
-              onCellClick={handleCellClick}
-            />
+            <div className="overflow-x-auto pb-2">
+              <FacilityBoard
+                columns={GRID_COLUMNS}
+                rows={GRID_ROWS}
+                facilities={gameState.facilities}
+                selectedFacilityId={selectedFacilityId}
+                selectedBuildType={selectedBuildType}
+                onCellClick={handleCellClick}
+              />
+            </div>
           </section>
 
           <aside className="hidden flex-col gap-4 lg:flex">
@@ -1910,6 +1999,37 @@ export default function EcoQuestGame() {
             <PlayersFeed items={feedItems} />
           </aside>
         </main>
+
+        <div className="fixed inset-x-0 bottom-[120px] z-40 flex items-center justify-around gap-2 px-4 lg:hidden">
+          {(
+            [
+              ["policy", "⚖️", "정책"],
+              ["ledger", "🌍", "환경"],
+              ["goals", "🎯", "목표"],
+              ["events", "📜", "이벤트"],
+            ] as Array<[MobilePanelKey, string, string]>
+          ).map(([key, icon, label]) => {
+            const active = activeMobileSheet === key;
+            return (
+              <button
+                key={key}
+                type="button"
+                onClick={() => toggleMobileSheet(key)}
+                aria-pressed={active}
+                className={`flex h-14 w-14 flex-col items-center justify-center rounded-full border text-[11px] font-semibold transition ${
+                  active
+                    ? "border-emerald-400 bg-emerald-400 text-slate-900 shadow-lg"
+                    : "border-emerald-400/40 bg-slate-900/90 text-emerald-100 hover:border-emerald-300"
+                }`}
+              >
+                <span className="text-lg" aria-hidden>
+                  {icon}
+                </span>
+                <span className="mt-0.5 leading-tight">{label}</span>
+              </button>
+            );
+          })}
+        </div>
 
         <section className="flex flex-col gap-4 lg:hidden">
           {detailPanel}
@@ -1945,6 +2065,14 @@ export default function EcoQuestGame() {
         </div>
       </div>
     </div>
+      {activeMobileSheet && mobileSheetContent ? (
+        <MobileSheet
+          title={mobileSheetTitleMap[activeMobileSheet]}
+          onClose={closeMobileSheet}
+        >
+          {mobileSheetContent}
+        </MobileSheet>
+      ) : null}
     </>
   );
 }

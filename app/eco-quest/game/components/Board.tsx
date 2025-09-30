@@ -54,7 +54,7 @@ export function FacilityBoard({
   return (
     <div
       className={mergeClasses(
-        "grid grid-cols-4 gap-3 sm:grid-cols-6 lg:grid-cols-8",
+        "grid grid-cols-3 gap-2 sm:grid-cols-5 sm:gap-3 lg:grid-cols-8",
         className,
       )}
     >
@@ -69,7 +69,7 @@ export function FacilityBoard({
             key={position}
             type="button"
             onClick={() => onCellClick(position)}
-            className={`relative flex aspect-square flex-col items-center justify-center rounded-2xl border text-xs transition ${
+            className={`relative flex aspect-square min-h-[72px] min-w-[72px] flex-col items-center justify-center rounded-2xl border text-xs transition sm:min-h-[80px] sm:min-w-[80px] lg:min-h-[88px] lg:min-w-[88px] ${
               facility
                 ? isSelected
                   ? "border-emerald-400 bg-emerald-500/10"

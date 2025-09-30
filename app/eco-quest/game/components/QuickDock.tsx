@@ -217,7 +217,7 @@ function FacilityButton({
       <button
         type="button"
         onClick={onClick}
-        className={`${baseButtonClasses} flex min-w-[90px] flex-col items-center gap-1 rounded-2xl px-3 py-2 text-[11px] font-semibold ${
+        className={`${baseButtonClasses} flex min-w-[112px] flex-col items-center gap-1 rounded-2xl px-3 py-3 text-[11px] font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300 ${
           selected
             ? "eco-card-selected text-emerald-100"
             : "text-slate-200 hover:text-emerald-100"
@@ -296,7 +296,7 @@ function QuickDockFilters({ activeFilter, onFilterChange, layout }: QuickDockFil
           <button
             key={option.value}
             type="button"
-            className="eco-filter-pill"
+            className="eco-filter-pill min-h-[52px]"
             data-active={active ? "true" : undefined}
             aria-pressed={active}
             onClick={() => onFilterChange(option.value)}
